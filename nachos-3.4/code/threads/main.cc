@@ -53,13 +53,21 @@
 #include "utility.h"
 #include "system.h"
 
+#if defined(CHANGED) && defined(THREADS)
+extern void ThreadTest(int n);
+#else
 #ifdef THREADS
 extern int testnum;
+#endif
 #endif
 
 // External functions used by this file
 
+#if defined(CHANGED) && defined(THREADS)
+extern void Copy(char *unixFile, char *nachosFile);
+#else
 extern void ThreadTest(void), Copy(char *unixFile, char *nachosFile);
+#endif
 extern void Print(char *file), PerformanceTest(void);
 extern void StartProcess(char *file), ConsoleTest(char *in, char *out);
 extern void MailTest(int networkID);
@@ -87,6 +95,20 @@ main(int argc, char **argv)
     DEBUG('t', "Entering main");
     (void) Initialize(argc, argv);
     
+#if defined(CHANGED) && defined(THREADS)
+    int numForked = 1;			// threads ThreadTest forks; -q n
+
+    for (argc--, argv++; argc > 0; argc -= argCount, argv += argCount) {
+      argCount = 1;
+      if (!strcmp(*argv, "-q")) {
+        ASSERT(argc > 1);
+        numForked = atoi(argv[1]);
+        argCount++;
+      }
+    }
+
+    ThreadTest(numForked);
+#else
 #ifdef THREADS
     for (argc--, argv++; argc > 0; argc -= argCount, argv += argCount) {
       argCount = 1;
@@ -102,6 +124,7 @@ main(int argc, char **argv)
     }
 
     ThreadTest();
+#endif
 #endif
 
     for (argc--, argv++; argc > 0; argc -= argCount, argv += argCount) {
