@@ -97,16 +97,110 @@ Semaphore::V()
     (void) interrupt->SetLevel(oldLevel);
 }
 
-// Dummy functions -- so we can compile our later assignments 
-// Note -- without a correct implementation of Condition::Wait(), 
-// the test case in the network assignment won't work!
-Lock::Lock(const char* debugName) {}
-Lock::~Lock() {}
-void Lock::Acquire() {}
-void Lock::Release() {}
+//----------------------------------------------------------------------
+// Lock
+//	A lock is a binary synchronization primitive with an owner.
+//----------------------------------------------------------------------
 
-Condition::Condition(const char* debugName) { }
-Condition::~Condition() { }
-void Condition::Wait(Lock* conditionLock) { ASSERT(FALSE); }
-void Condition::Signal(Lock* conditionLock) { }
-void Condition::Broadcast(Lock* conditionLock) { }
+Lock::Lock(const char* debugName)
+{
+    name = debugName;
+    busy = FALSE;
+    owner = NULL;
+    queue = new List;
+}
+
+Lock::~Lock()
+{
+    delete queue;
+}
+
+void
+Lock::Acquire()
+{
+    IntStatus oldLevel = interrupt->SetLevel(IntOff);
+
+    while (busy) {
+	queue->Append((void *)currentThread);
+	currentThread->Sleep();
+    }
+    busy = TRUE;
+    owner = currentThread;
+
+    (void) interrupt->SetLevel(oldLevel);
+}
+
+void
+Lock::Release()
+{
+    IntStatus oldLevel = interrupt->SetLevel(IntOff);
+    ASSERT(owner == currentThread);
+
+    owner = NULL;
+    busy = FALSE;
+    Thread *thread = (Thread *)queue->Remove();
+    if (thread != NULL)
+	scheduler->ReadyToRun(thread);
+
+    (void) interrupt->SetLevel(oldLevel);
+}
+
+bool
+Lock::isHeldByCurrentThread()
+{
+    return owner == currentThread;
+}
+
+Condition::Condition(const char* debugName)
+{
+    name = debugName;
+    queue = new List;
+}
+
+Condition::~Condition()
+{
+    delete queue;
+}
+
+void
+Condition::Wait(Lock* conditionLock)
+{
+    ASSERT(conditionLock != NULL);
+    IntStatus oldLevel = interrupt->SetLevel(IntOff);
+    ASSERT(conditionLock->isHeldByCurrentThread());
+
+    queue->Append((void *)currentThread);
+    conditionLock->Release();
+    currentThread->Sleep();
+
+    (void) interrupt->SetLevel(oldLevel);
+    conditionLock->Acquire();
+}
+
+void
+Condition::Signal(Lock* conditionLock)
+{
+    ASSERT(conditionLock != NULL);
+    IntStatus oldLevel = interrupt->SetLevel(IntOff);
+    ASSERT(conditionLock->isHeldByCurrentThread());
+
+    Thread *thread = (Thread *)queue->Remove();
+    if (thread != NULL)
+	scheduler->ReadyToRun(thread);
+
+    (void) interrupt->SetLevel(oldLevel);
+}
+
+void
+Condition::Broadcast(Lock* conditionLock)
+{
+    ASSERT(conditionLock != NULL);
+    IntStatus oldLevel = interrupt->SetLevel(IntOff);
+    ASSERT(conditionLock->isHeldByCurrentThread());
+
+    Thread *thread;
+    while ((thread = (Thread *)queue->Remove()) != NULL)
+	scheduler->ReadyToRun(thread);
+
+    (void) interrupt->SetLevel(oldLevel);
+}

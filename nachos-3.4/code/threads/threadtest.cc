@@ -14,15 +14,24 @@
 
 #if defined(CHANGED) && defined(THREADS)
 
-#ifdef HW1_SEMAPHORES
+#if defined(HW1_SEMAPHORES) || defined(HW1_LOCKS) || defined(HW1_CONDITIONS)
 #include "synch.h"
 #endif
 
 int SharedVariable;
 
-#ifdef HW1_SEMAPHORES
+#if defined(HW1_SEMAPHORES)
 static Semaphore *mutex;	// guards SharedVariable and numDone
 static Semaphore *barrier;	// released once every thread leaves the loop
+#elif defined(HW1_LOCKS)
+static Lock *mutex;		// guards SharedVariable and numDone
+static Semaphore *barrier;	// released once every thread leaves the loop
+#elif defined(HW1_CONDITIONS)
+static Lock *mutex;		// guards SharedVariable and numDone
+static Lock *barrierLock;
+static Condition *barrier;
+#endif
+#if defined(HW1_SEMAPHORES) || defined(HW1_LOCKS) || defined(HW1_CONDITIONS)
 static int numThreads;		// total threads running SimpleThread
 static int numDone;		// threads that have finished the loop
 #endif
@@ -48,6 +57,8 @@ SimpleThread(int which)
     for (num = 0; num < 5; num++) {
 #ifdef HW1_SEMAPHORES
         mutex->P();
+#elif defined(HW1_LOCKS) || defined(HW1_CONDITIONS)
+    mutex->Acquire();
 #endif
         val = SharedVariable;
         printf("*** thread %d sees value %d\n", which, val);
@@ -55,6 +66,8 @@ SimpleThread(int which)
         SharedVariable = val+1;
 #ifdef HW1_SEMAPHORES
         mutex->V();
+#elif defined(HW1_LOCKS) || defined(HW1_CONDITIONS)
+    mutex->Release();
 #endif
         currentThread->Yield();
     }
@@ -67,6 +80,23 @@ SimpleThread(int which)
     mutex->V();
     barrier->P();		// turnstile: each thread passes it on
     barrier->V();
+#elif defined(HW1_LOCKS)
+    mutex->Acquire();
+    numDone++;
+    if (numDone == numThreads)
+	barrier->V();
+    mutex->Release();
+    barrier->P();		// turnstile: each thread passes it on
+    barrier->V();
+#elif defined(HW1_CONDITIONS)
+    barrierLock->Acquire();
+    numDone++;
+    if (numDone == numThreads)
+	barrier->Broadcast(barrierLock);
+    else
+	while (numDone < numThreads)
+	    barrier->Wait(barrierLock);
+    barrierLock->Release();
 #endif
 
     val = SharedVariable;
@@ -87,6 +117,15 @@ ThreadTest(int n)
 #ifdef HW1_SEMAPHORES
     mutex = new Semaphore("SharedVariable mutex", 1);
     barrier = new Semaphore("SimpleThread barrier", 0);
+#elif defined(HW1_LOCKS)
+    mutex = new Lock("SharedVariable mutex");
+    barrier = new Semaphore("SimpleThread barrier", 0);
+#elif defined(HW1_CONDITIONS)
+    mutex = new Lock("SharedVariable mutex");
+    barrierLock = new Lock("SimpleThread barrier lock");
+    barrier = new Condition("SimpleThread barrier");
+#endif
+#if defined(HW1_SEMAPHORES) || defined(HW1_LOCKS) || defined(HW1_CONDITIONS)
     numThreads = n + 1;
     numDone = 0;
 #endif
