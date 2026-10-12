@@ -1,38 +1,72 @@
 Project 1 Report
 
-Partner 1 Name:Andrei Endelman
-Partner 2 Name:Alec Borque 
-Partner 3 Name:Uriel Zeledon 
+Partner 1 Name: Andrei Endelman
+Partner 2 Name: Alec Borque
+Partner 3 Name: Uriel Zeledon
 
-Repository/Submission Notes:
-- This report summarizes completion status for Exercises 1-4.
-- For any partial/incomplete exercise, include a detailed explanation of what works, what does not, and what remains.
+Exercise status
+---------------
+Exercise 1 (Simple Threads Programming): Completed. ThreadTest(int n) forks n threads; SimpleThread is synchronized with semaphores under HW1_SEMAPHORES.
+Exercise 2 (Implementing Locks): Completed. Lock is implemented in synch.cc; SimpleThread uses it under HW1_LOCKS.
+Exercise 3 (Implementing Conditions): Completed. Condition (Mesa semantics) is implemented in synch.cc.
+Exercise 4 (Elevator): Completed. Elevator() and ArrivingGoingFromTo() are in threadtest.cc and are called from main.cc under HW1_ELEVATOR.
 
-Exercise 1 (Simple Threads Programming) - Status:
-- Completed / Partial / Not started:
-- One-line summary (required even if complete or not started):
-- Detailed notes (required only if partial):
+Build flags
+-----------
+All flags are passed through DEFINES, e.g. make DEFINES="-DTHREADS -DHW1_SEMAPHORES".
+(no HW1 flag)    Nachos default output ("*** thread 0 looped 0 times" ...). -q n forks n threads; the default is 1.
+HW1_SEMAPHORES   Exercise 1 SimpleThread synchronized with semaphores. -q n sets n.
+HW1_LOCKS        Same demonstration with a Lock in place of the mutex semaphore.
+HW1_ELEVATOR     Elevator simulation: 5 floors, 10 people with random floors and arrival times. -q n sets the number of people.
+Two extra flags are ours and are not needed for grading:
+HW1_NOSYNC       The Exercise 1 SimpleThread with no synchronization (used for the analysis below).
+HW1_CONDITIONS   The Exercise 1 demonstration with the barrier built from a Lock and a Condition.
 
-Exercise 2 (Implementing Locks) - Status:
-- Completed / Partial / Not started:
-- One-line summary (required even if complete or not started):
-- Detailed notes (required only if partial):
+Exercise 1: results and explanation
+-----------------------------------
+Without synchronization (HW1_NOSYNC), every thread sees a final value of 5 for
+n = 0, 1, 2, 3 and 4, although n+1 threads each increment the variable 5 times
+and the total should be 5*(n+1).
 
-Exercise 3 (Implementing Conditions) - Status:
-- Completed / Partial / Not started:
-- One-line summary (required even if complete or not started):
-- Detailed notes (required only if partial):
+The cause is a lost update. Each thread reads SharedVariable into val, yields,
+and only afterwards writes val+1. While it is switched out, the other threads
+run and read the same old value. With round-robin scheduling all n+1 threads
+read k, then all of them write k+1, so one pass of the loop over all threads
+adds 1 instead of n+1. After 5 passes the value is 5 whatever n is. With n = 0
+there is only one thread, so nothing is lost and 5 is the correct answer.
 
-Exercise 4 (Elevator) - Status:
-- Completed / Partial / Not started:
-- One-line summary (required even if complete or not started):
-- Detailed notes (required only if partial):
+With random interrupts (-rs) the context switches fall at different points, so
+the number of lost updates varies and threads no longer agree. For example
+n = 3 with -rs 7 gave final values 6, 7, 8 and 8. A thread can also print its
+final value while other threads are still in the loop.
 
-Testing Summary:
-- Build/run commands used:
-- Which preprocessor flags were tested:
-- Observed outputs (brief):
+With HW1_SEMAPHORES a semaphore with initial value 1 is held from the read of
+SharedVariable to the write, so each iteration adds exactly 1. A barrier (a
+count of finished threads protected by the same semaphore, plus a second
+semaphore with initial value 0 that the last thread releases and each thread
+passes on) makes every thread wait until all threads have left the loop before
+it reads the final value. Every thread then sees 5*(n+1): 5, 10, 15, 20 and 25
+for n = 0 to 4. This also holds with -rs.
 
-Known Limitations (if any):
-- 
+Testing summary
+---------------
+HW1_SEMAPHORES, HW1_LOCKS and HW1_CONDITIONS were each run for n = 0 to 4,
+once without -rs and with nine different -rs seeds. In all runs every thread
+finished and every thread saw 5*(n+1).
+HW1_ELEVATOR was run with 0, 1, 3, 8, 20 and 40 people, without -rs and with
+seven -rs seeds, and with 12 people all arriving at once. In all runs every
+person was delivered, people got in and out on the correct floors, the
+elevator moved one floor at a time, and it never held more than 5 people.
 
+Implementation notes
+--------------------
+- The elevator keeps moving in one direction while there are requests ahead
+  of it, then reverses. At each floor it lets riders out, then lets in people
+  going in its direction, up to 5.
+- Moving one floor is a loop of 50 iterations that yields each time, so that
+  people can arrive while the elevator is moving.
+- The elevator starts on floor 1 and prints "Elevator arrives on floor x."
+  only when it moves to a floor, so nothing is printed for its starting floor.
+- The synch.cc and synch.h changes are guarded by CHANGED alone rather than
+  CHANGED && THREADS, because the userprog, vm and network builds do not
+  define THREADS but still need working locks and conditions.

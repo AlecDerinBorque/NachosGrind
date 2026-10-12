@@ -23,8 +23,8 @@
 //----------------------------------------------------------------------
 // Exercise 4: Elevator
 //
-//	One elevator thread serves floors 1..numFloors.  Each person is a
-//	thread that calls ArrivingGoingFromTo(atFloor, toFloor).
+//	One elevator thread serves floors 1..numFloors.  Each call to
+//	ArrivingGoingFromTo(atFloor, toFloor) forks a person thread.
 //
 //	Design (all shared state is protected by elevLock):
 //	  - The elevator sweeps in one direction while there is work
@@ -57,6 +57,12 @@ static bool elevExiting;	// doors open for riders to get off
 static int *waiting[2];		// waiting[dir][f]: people at f going dir
 static int *exiting;		// exiting[f]: riders whose destination is f
 static int nextPersonId;
+
+struct PersonThread {
+    int id;
+    int atFloor;
+    int toFloor;
+};
 
 // Is there anyone waiting at, or any rider going to, a floor strictly
 // beyond floor f in direction dir?
@@ -181,19 +187,20 @@ Elevator(int numFloors)
 }
 
 //----------------------------------------------------------------------
-// ArrivingGoingFromTo
-//	Called by a person thread.  Requests the elevator at atFloor,
-//	rides it to toFloor, and returns once the person has gotten out.
+// PersonRun
+//	Body of a person thread.  Requests the elevator at p->atFloor,
+//	rides it to p->toFloor, and finishes once the person has gotten
+//	out.  "arg" is the PersonThread describing this person.
 //----------------------------------------------------------------------
 
-void
-ArrivingGoingFromTo(int atFloor, int toFloor)
+static void
+PersonRun(int arg)
 {
-    ASSERT(atFloor >= 1 && atFloor <= elevNumFloors);
-    ASSERT(toFloor >= 1 && toFloor <= elevNumFloors);
+    PersonThread *p = (PersonThread *)arg;
+    int id = p->id, atFloor = p->atFloor, toFloor = p->toFloor;
+    delete p;
 
     elevLock->Acquire();
-    int id = nextPersonId++;
     printf("Person %d wants to go to floor %d from floor %d.\n",
            id, toFloor, atFloor);
 
@@ -230,37 +237,35 @@ ArrivingGoingFromTo(int atFloor, int toFloor)
 }
 
 //----------------------------------------------------------------------
-// Test driver: n people arrive at random times going between random
-// floors.
+// ArrivingGoingFromTo
+//	Create a person thread that requests the elevator at atFloor and
+//	rides it to toFloor.  Returns immediately; people are numbered in
+//	the order of these calls.
 //----------------------------------------------------------------------
 
-#define ELEVATOR_TEST_FLOORS 5
-
-static void
-PersonThread(int unused)
+void
+ArrivingGoingFromTo(int atFloor, int toFloor)
 {
-    int at = Random() % ELEVATOR_TEST_FLOORS + 1;
-    int to = Random() % (ELEVATOR_TEST_FLOORS - 1) + 1;
-    if (to >= at)
-        to++;			// pick a floor other than "at"
+    ASSERT(atFloor >= 1 && atFloor <= elevNumFloors);
+    ASSERT(toFloor >= 1 && toFloor <= elevNumFloors);
 
-    int delay = Random() % 300;	// stagger arrival times
-    for (int i = 0; i < delay; i++)
-        currentThread->Yield();
+    PersonThread *p = new PersonThread;
+    elevLock->Acquire();
+    p->id = nextPersonId++;
+    elevLock->Release();
+    p->atFloor = atFloor;
+    p->toFloor = toFloor;
 
-    ArrivingGoingFromTo(at, to);
-}
-
-static void
-ElevatorTest(int numPeople)
-{
-    Elevator(ELEVATOR_TEST_FLOORS);
-    for (int i = 0; i < numPeople; i++) {
-        Thread *t = new Thread("person");
-        t->Fork(PersonThread, i);
-    }
+    Thread *t = new Thread("person");
+    t->Fork(PersonRun, (int)p);
 }
 #endif // HW1_ELEVATOR
+
+// The Exercise 1 version of SimpleThread is compiled when one of the
+// synchronization flags is defined, or HW1_NOSYNC for the unsynchronized
+// demonstration.  With none of them, SimpleThread is the Nachos default.
+#if defined(HW1_SEMAPHORES) || defined(HW1_LOCKS) || defined(HW1_CONDITIONS) \
+    || defined(HW1_NOSYNC)
 
 int SharedVariable;
 
@@ -302,7 +307,7 @@ SimpleThread(int which)
 #ifdef HW1_SEMAPHORES
         mutex->P();
 #elif defined(HW1_LOCKS) || defined(HW1_CONDITIONS)
-    mutex->Acquire();
+        mutex->Acquire();
 #endif
         val = SharedVariable;
         printf("*** thread %d sees value %d\n", which, val);
@@ -311,7 +316,7 @@ SimpleThread(int which)
 #ifdef HW1_SEMAPHORES
         mutex->V();
 #elif defined(HW1_LOCKS) || defined(HW1_CONDITIONS)
-    mutex->Release();
+        mutex->Release();
 #endif
         currentThread->Yield();
     }
@@ -347,16 +352,29 @@ SimpleThread(int which)
     printf("Thread %d sees final value %d\n", which, val);
 }
 
-static void
-DefaultSimpleThread(int which)
+#else
+
+//----------------------------------------------------------------------
+// SimpleThread
+// 	Loop 5 times, yielding the CPU to another ready thread 
+//	each iteration.
+//
+//	"which" is simply a number identifying the thread, for debugging
+//	purposes.
+//----------------------------------------------------------------------
+
+void
+SimpleThread(int which)
 {
     int num;
-
+    
     for (num = 0; num < 5; num++) {
-        printf("*** thread %d looped %d times\n", which, num);
+	printf("*** thread %d looped %d times\n", which, num);
         currentThread->Yield();
     }
 }
+
+#endif
 
 //----------------------------------------------------------------------
 // ThreadTest
@@ -368,28 +386,6 @@ void
 ThreadTest(int n)
 {
     DEBUG('t', "Entering ThreadTest");
-
-#ifdef HW1_ELEVATOR
-    ElevatorTest(n);		// -q n = number of people
-    return;
-#endif
-
-#if !defined(HW1_SEMAPHORES) && !defined(HW1_LOCKS) \
-    && !defined(HW1_CONDITIONS)
-    // With no HW1 exercise selected, preserve default Nachos behavior.
-    switch (n) {
-    case 1: {
-        Thread *t = new Thread("forked thread");
-        t->Fork(DefaultSimpleThread, 1);
-        DefaultSimpleThread(0);
-        break;
-    }
-    default:
-        printf("No test specified.\n");
-        break;
-    }
-    return;
-#endif
 
 #ifdef HW1_SEMAPHORES
     mutex = new Semaphore("SharedVariable mutex", 1);

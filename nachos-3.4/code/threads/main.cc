@@ -55,6 +55,13 @@
 
 #if defined(CHANGED) && defined(THREADS)
 extern void ThreadTest(int n);
+#ifdef HW1_ELEVATOR
+extern void Elevator(int numFloors);
+extern void ArrivingGoingFromTo(int atFloor, int toFloor);
+
+#define ELEVATOR_TEST_FLOORS 5		// floors in the test building
+#define ELEVATOR_TEST_PEOPLE 10		// people, unless -q n is given
+#endif
 #else
 #ifdef THREADS
 extern int testnum;
@@ -97,17 +104,39 @@ main(int argc, char **argv)
     
 #if defined(CHANGED) && defined(THREADS)
     int numForked = 1;			// threads ThreadTest forks; -q n
+    bool numGiven = FALSE;
 
     for (argc--, argv++; argc > 0; argc -= argCount, argv += argCount) {
       argCount = 1;
       if (!strcmp(*argv, "-q")) {
         ASSERT(argc > 1);
         numForked = atoi(argv[1]);
+        numGiven = TRUE;
         argCount++;
       }
     }
 
+#ifdef HW1_ELEVATOR
+    // Elevator simulation: people arrive at random times, going
+    // between random floors.  -q n sets the number of people.
+    int numPeople = numGiven ? numForked : ELEVATOR_TEST_PEOPLE;
+
+    Elevator(ELEVATOR_TEST_FLOORS);
+    for (int i = 0; i < numPeople; i++) {
+        int at = Random() % ELEVATOR_TEST_FLOORS + 1;
+        int to = Random() % (ELEVATOR_TEST_FLOORS - 1) + 1;
+        if (to >= at)
+            to++;			// pick a floor other than "at"
+        ArrivingGoingFromTo(at, to);
+
+        int delay = Random() % 60;	// stagger arrival times
+        for (int j = 0; j < delay; j++)
+            currentThread->Yield();
+    }
+#else
+    (void) numGiven;
     ThreadTest(numForked);
+#endif
 #else
 #ifdef THREADS
     for (argc--, argv++; argc > 0; argc -= argCount, argv += argCount) {
