@@ -1,14 +1,14 @@
 Project 1 Report
 
-Partner 1 Name: Andrei Endelman
-Partner 2 Name: Alec Borque
-Partner 3 Name: Uriel Zeledon
+Partner 1 Name: Andrei Endelman (Exercise 2/3)
+Partner 2 Name: Alec Borque (Exercise 1)
+Partner 3 Name: Uriel Zeledon (Exercise 4)
 
 Exercise status
 ---------------
 Exercise 1 (Simple Threads Programming): Completed. ThreadTest(int n) forks n threads; SimpleThread is synchronized with semaphores under HW1_SEMAPHORES.
-Exercise 2 (Implementing Locks): Completed. Lock is implemented in synch.cc; SimpleThread uses it under HW1_LOCKS.
-Exercise 3 (Implementing Conditions): Completed. Condition (Mesa semantics) is implemented in synch.cc.
+Exercise 2 (Implementing Locks): Completed. Lock is implemented in synch.cc and used by SimpleThread under HW1_LOCKS.
+Exercise 3 (Implementing Conditions): Completed. Condition (Mesa semantics) is implemented in synch.cc and used by the barrier under HW1_CONDITIONS.
 Exercise 4 (Elevator): Completed. Elevator() and ArrivingGoingFromTo() are in threadtest.cc and are called from main.cc under HW1_ELEVATOR.
 
 Build flags
@@ -48,11 +48,39 @@ passes on) makes every thread wait until all threads have left the loop before
 it reads the final value. Every thread then sees 5*(n+1): 5, 10, 15, 20 and 25
 for n = 0 to 4. This also holds with -rs.
 
+Exercise 2: implementation summary
+----------------------------------
+Lock::Lock(debugName) stores the lock name, sets busy to FALSE, sets owner to
+NULL, and allocates a waiting queue. Lock::~Lock deallocates the queue.
+
+Lock::Acquire disables interrupts, sleeps while the lock is busy, then marks
+the lock busy and records currentThread as owner. Lock::Release disables
+interrupts, asserts that only the owning thread can release, clears ownership,
+marks the lock free, and wakes one waiter if present. isHeldByCurrentThread()
+returns whether the lock owner is currentThread.
+
+Exercise 3: implementation summary
+----------------------------------
+Condition::Condition(debugName) stores the name and creates a waiting queue;
+Condition::~Condition deallocates it.
+
+Condition::Wait requires a non-NULL lock held by currentThread, appends the
+current thread to the condition queue, releases the lock, sleeps, and then
+reacquires the lock before returning. Signal wakes one waiter, and Broadcast
+wakes all waiters. Both require the caller to hold the same lock.
+
+This follows Mesa semantics: Signal/Broadcast only move waiters to the ready
+queue, and awakened threads must compete to reacquire the lock.
+
 Testing summary
 ---------------
 HW1_SEMAPHORES, HW1_LOCKS and HW1_CONDITIONS were each run for n = 0 to 4,
-once without -rs and with nine different -rs seeds. In all runs every thread
-finished and every thread saw 5*(n+1).
+once without -rs and with nine different -rs seeds.
+- HW1_LOCKS: lock-based mutual exclusion preserved correct increments; all
+  threads finished and every thread saw 5*(n+1).
+- HW1_CONDITIONS: lock+condition barrier released only after all threads
+  completed the loop; all threads reported the same final value 5*(n+1).
+- HW1_SEMAPHORES: results matched the semaphore baseline for comparison.
 HW1_ELEVATOR was run with 0, 1, 3, 8, 20 and 40 people, without -rs and with
 seven -rs seeds, and with 12 people all arriving at once. In all runs every
 person was delivered, people got in and out on the correct floors, the
@@ -60,6 +88,13 @@ elevator moved one floor at a time, and it never held more than 5 people.
 
 Implementation notes
 --------------------
+- Lock and Condition operations are made atomic by disabling interrupts around
+  queue/ownership state transitions.
+- Lock ownership is tracked explicitly (owner pointer), and Release asserts
+  ownership to enforce correct usage.
+- Condition::Wait performs atomic "release lock + sleep + reacquire" behavior
+  needed for correct condition-variable semantics.
+- Condition::Signal wakes one waiter; Broadcast wakes all waiters.
 - The elevator keeps moving in one direction while there are requests ahead
   of it, then reverses. At each floor it lets riders out, then lets in people
   going in its direction, up to 5.
