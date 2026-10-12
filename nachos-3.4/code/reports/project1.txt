@@ -1,0 +1,38 @@
+Project 1 Report
+
+Partner 1 Name:Andrei Endelman
+Partner 2 Name:Alec Borque 
+Partner 3 Name:Uriel Zeledon 
+
+Repository/Submission Notes:
+- This report summarizes completion status for Exercises 1-4.
+- For any partial/incomplete exercise, include a detailed explanation of what works, what does not, and what remains.
+
+Exercise 1 (Simple Threads Programming) - Status:
+- Completed / Partial / Not started:
+- One-line summary (required even if complete or not started):
+- Detailed notes (required only if partial):
+
+Exercise 2 (Implementing Locks) - Status:
+- Completed / Partial / Not started:
+- One-line summary (required even if complete or not started):
+- Detailed notes (required only if partial):
+
+Exercise 3 (Implementing Conditions) - Status:
+- Completed / Partial / Not started:
+- One-line summary (required even if complete or not started):
+- Detailed notes (required only if partial):
+
+Exercise 4 (Elevator) - Status:
+- Completed / Partial / Not started:
+- One-line summary (required even if complete or not started):
+- Detailed notes (required only if partial):
+
+Testing Summary:
+- Build/run commands used:
+- Which preprocessor flags were tested:
+- Observed outputs (brief):
+
+Known Limitations (if any):
+- 
+

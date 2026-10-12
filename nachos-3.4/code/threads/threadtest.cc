@@ -347,6 +347,17 @@ SimpleThread(int which)
     printf("Thread %d sees final value %d\n", which, val);
 }
 
+static void
+DefaultSimpleThread(int which)
+{
+    int num;
+
+    for (num = 0; num < 5; num++) {
+        printf("*** thread %d looped %d times\n", which, num);
+        currentThread->Yield();
+    }
+}
+
 //----------------------------------------------------------------------
 // ThreadTest
 // 	Fork n new threads to call SimpleThread, and then call
@@ -360,6 +371,23 @@ ThreadTest(int n)
 
 #ifdef HW1_ELEVATOR
     ElevatorTest(n);		// -q n = number of people
+    return;
+#endif
+
+#if !defined(HW1_SEMAPHORES) && !defined(HW1_LOCKS) \
+    && !defined(HW1_CONDITIONS)
+    // With no HW1 exercise selected, preserve default Nachos behavior.
+    switch (n) {
+    case 1: {
+        Thread *t = new Thread("forked thread");
+        t->Fork(DefaultSimpleThread, 1);
+        DefaultSimpleThread(0);
+        break;
+    }
+    default:
+        printf("No test specified.\n");
+        break;
+    }
     return;
 #endif
 
