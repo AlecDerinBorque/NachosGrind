@@ -1,3 +1,8 @@
+#ifdef HW1_ELEVATOR
+#ifndef THREADS
+#define THREADS
+#endif
+#endif
 // main.cc 
 //	Bootstrap code to initialize the operating system kernel.
 //
