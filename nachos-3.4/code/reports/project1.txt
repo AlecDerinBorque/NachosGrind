@@ -72,6 +72,29 @@ wakes all waiters. Both require the caller to hold the same lock.
 This follows Mesa semantics: Signal/Broadcast only move waiters to the ready
 queue, and awakened threads must compete to reacquire the lock.
 
+Exercise 4: implementation summary
+----------------------------------
+Elevator(numFloors) sets up the shared state and forks the elevator thread,
+which starts on floor 1. ArrivingGoingFromTo(atFloor, toFloor) forks a new
+person thread for each request, as the spec requires, so callers never block.
+
+All shared state (current floor, direction, riders inside, people waiting per
+floor and direction, riders per destination) is protected by one Lock.
+People waiting to board wait on a per-floor Condition, riders wait on a
+per-destination-floor Condition, and the elevator waits on its own Condition
+when it is idle or waiting for people to get on and off.
+
+At each floor the elevator first broadcasts to riders whose destination is
+that floor and waits until they have all left, then picks its direction and
+broadcasts to people waiting there to go that way, letting them in up to the
+capacity of 5. It keeps moving in one direction while there is work ahead and
+reverses otherwise (LOOK scheduling), so people are picked up on the way
+instead of being served one at a time. Moving one floor takes 50 ticks; the
+lock is released during the move so new people can arrive.
+
+Every person is delivered in all of our tests (see Testing summary), and the
+elevator never held more than 5 people.
+
 Testing summary
 ---------------
 HW1_SEMAPHORES, HW1_LOCKS and HW1_CONDITIONS were each run for n = 0 to 4,
